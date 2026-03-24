@@ -1,0 +1,49 @@
+{
+  "expo": {
+    "name": "오늘 뭐 먹지",
+    "slug": "date-meal-recommender",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "resizeMode": "contain",
+      "backgroundColor": "#FF6B6B"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.datemealmvp.app"
+    },
+    "android": {
+      "package": "com.datemealmvp.app",
+      "adaptiveIcon": {
+        "backgroundColor": "#FF6B6B"
+      },
+      "permissions": [
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION"
+      ]
+    },
+    "plugins": [
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Allow Date Meal to use your location."
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "usesCleartextTraffic": true
+          }
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "7a1e7365-8bb0-45a3-9c7b-baf1efe73072"
+      }
+    },
+    "owner": "jay-cho"
+  }
+}

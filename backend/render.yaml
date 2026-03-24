@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: omeomeok-backend
+    env: python
+    rootDir: .
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "uvicorn app.main:app --host 0.0.0.0 --port $PORT"
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: ALLOWED_ORIGINS_STR
+        value: "*"
+      - key: KAKAO_API_KEY
+        sync: false   # Render 대시보드에서 직접 입력
+      - key: SECRET_KEY
+        generateValue: true
