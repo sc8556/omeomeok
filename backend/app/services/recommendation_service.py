@@ -16,7 +16,7 @@ class RecommendationService:
         self.preference_repo = PreferenceRepository(db)
 
     def generate(self, request: RecommendationRequest) -> List[Recommendation]:
-        restaurants = self.restaurant_repo.get_all(limit=1000)
+        restaurants = self.restaurant_repo.get_all(limit=2000)
 
         user_lat, user_lng = self._parse_coords(request.location_lat, request.location_lng)
 

@@ -21,7 +21,7 @@ export const recommendationsApi = {
 };
 
 export const restaurantsApi = {
-  list: (limit = 500): Promise<Restaurant[]> =>
+  list: (limit = 2000): Promise<Restaurant[]> =>
     client.get("/restaurants", { params: { limit } }).then((r) => r.data),
   getById: (id: number): Promise<Restaurant> =>
     client.get(`/restaurants/${id}`).then((r) => r.data),
