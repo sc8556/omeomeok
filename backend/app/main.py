@@ -1,6 +1,5 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy import text
 from app.core.config import get_settings
 from app.db.base import Base
 from app.db.session import engine
@@ -9,14 +8,6 @@ from app.routes import health, recommendations, restaurants, preferences, histor
 settings = get_settings()
 
 Base.metadata.create_all(bind=engine)
-
-# Migrate: add kakao_id column if it doesn't exist yet
-with engine.connect() as _conn:
-    try:
-        _conn.execute(text("ALTER TABLE restaurants ADD COLUMN kakao_id VARCHAR(50)"))
-        _conn.commit()
-    except Exception:
-        pass  # Column already exists
 
 app = FastAPI(
     title="Date Meal Recommender API",
