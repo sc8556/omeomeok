@@ -34,7 +34,7 @@ export default function RestaurantListScreen() {
       const data = await restaurantsApi.list();
       setRestaurants(data);
     } catch {
-      setRestaurants([]);
+      // 에러 시 기존 데이터 유지 (서버 cold start 등으로 실패해도 목록 유지)
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -46,6 +46,7 @@ export default function RestaurantListScreen() {
       load();
     }, [load])
   );
+
 
   const filtered = query.trim()
     ? restaurants.filter(
