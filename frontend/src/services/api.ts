@@ -6,6 +6,7 @@ import type {
   Restaurant,
   HistoryResponse,
   Preference,
+  LocationSuggestion,
 } from "@/types";
 
 const client = axios.create({
@@ -41,6 +42,8 @@ export const preferencesApi = {
 export const geocodeApi = {
   reverse: (lat: number, lng: number): Promise<{ address: string }> =>
     client.get("/geocode/reverse", { params: { lat, lng } }).then((r) => r.data),
+  search: (query: string): Promise<LocationSuggestion[]> =>
+    client.get("/geocode/search", { params: { query } }).then((r) => r.data),
 };
 
 export const healthApi = {

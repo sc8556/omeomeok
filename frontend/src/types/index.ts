@@ -41,6 +41,13 @@ export interface HistoryResponse {
   total: number;
 }
 
+export interface LocationSuggestion {
+  name: string;
+  address: string;
+  lat: number;
+  lng: number;
+}
+
 export interface Preference {
   id: number;
   session_id: string;

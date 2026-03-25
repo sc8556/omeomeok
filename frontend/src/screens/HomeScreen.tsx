@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import {
   View,
   Text,
@@ -8,26 +8,54 @@ import {
   SafeAreaView,
   Alert,
   ActivityIndicator,
+  TextInput,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import type { RootStackNavigationProp } from "@/navigation/types";
 import { colors, spacing, typography, borderRadius } from "@/theme";
-import { MOODS, FOOD_TYPES, FOOD_TYPE_LABELS, BUDGET_OPTIONS, DISTANCE_OPTIONS } from "@/constants";
-import { recommendationsApi } from "@/services/api";
+import { FOOD_TYPES, FOOD_TYPE_LABELS, BUDGET_OPTIONS, DISTANCE_OPTIONS } from "@/constants";
+import { recommendationsApi, geocodeApi } from "@/services/api";
 import { useSessionId } from "@/hooks/useSessionId";
 import { useLocation, type LocationStatus } from "@/hooks/useLocation";
+import type { LocationSuggestion } from "@/types";
 
 export default function HomeScreen() {
   const navigation = useNavigation<RootStackNavigationProp>();
   const sessionId = useSessionId();
   const { location, address, addressLoading, isDefaultLocation, status: locationStatus, requestPermission } = useLocation();
 
-  const [selectedMood, setSelectedMood] = useState<string | null>(null);
   const [selectedBudget, setSelectedBudget] = useState<number | null>(null);
   const [selectedFoodTypes, setSelectedFoodTypes] = useState<string[]>([]);
   const [selectedDistance, setSelectedDistance] = useState<number>(5);
   const [loading, setLoading] = useState(false);
+
+  // 위치 검색
+  const [searchQuery, setSearchQuery] = useState("");
+  const [suggestions, setSuggestions] = useState<LocationSuggestion[]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [customLocation, setCustomLocation] = useState<LocationSuggestion | null>(null);
+  const [showSearch, setShowSearch] = useState(false);
+  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setSuggestions([]);
+      return;
+    }
+    if (searchTimer.current) clearTimeout(searchTimer.current);
+    searchTimer.current = setTimeout(async () => {
+      setSearchLoading(true);
+      try {
+        const results = await geocodeApi.search(searchQuery.trim());
+        setSuggestions(results);
+      } catch {
+        setSuggestions([]);
+      } finally {
+        setSearchLoading(false);
+      }
+    }, 400);
+  }, [searchQuery]);
 
   const toggleFoodType = (type: string) => {
     setSelectedFoodTypes((prev) =>
@@ -35,22 +63,37 @@ export default function HomeScreen() {
     );
   };
 
+  const selectSuggestion = (s: LocationSuggestion) => {
+    setCustomLocation(s);
+    setShowSearch(false);
+    setSearchQuery("");
+    setSuggestions([]);
+  };
+
+  const clearCustomLocation = () => {
+    setCustomLocation(null);
+  };
+
+  const activeLocation = customLocation
+    ? { latitude: customLocation.lat, longitude: customLocation.lng }
+    : location;
+  const activeIsDefault = customLocation ? false : isDefaultLocation;
+
   const handleRecommend = async () => {
     setLoading(true);
     try {
       const response = await recommendationsApi.create({
         session_id: sessionId,
-        mood: selectedMood ?? undefined,
         budget: selectedBudget ?? undefined,
         food_types: selectedFoodTypes,
         distance_km: selectedDistance,
-        location_lat: location ? String(location.latitude) : undefined,
-        location_lng: location ? String(location.longitude) : undefined,
+        location_lat: activeLocation ? String(activeLocation.latitude) : undefined,
+        location_lng: activeLocation ? String(activeLocation.longitude) : undefined,
       });
       navigation.navigate("RecommendationResults", {
         response,
         distanceKm: selectedDistance,
-        isDefaultLocation,
+        isDefaultLocation: activeIsDefault,
       });
     } catch (e: any) {
       const msg = e?.message || e?.toString() || "알 수 없는 오류";
@@ -62,31 +105,105 @@ export default function HomeScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={styles.scroll}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
         <View style={styles.header}>
           <Text style={styles.appName}>🍴 오늘 뭐 먹지</Text>
-          <Text style={styles.heading}>어떤 분위기예요?</Text>
-          <LocationCard
-            status={locationStatus}
-            address={address}
-            addressLoading={addressLoading}
-            isDefaultLocation={isDefaultLocation}
-            onRetry={requestPermission}
-          />
-        </View>
+          <Text style={styles.heading}>어디서 먹을까요?</Text>
 
-        <Section title="분위기">
-          <View style={styles.chipRow}>
-            {MOODS.map((m) => (
-              <Chip
-                key={m.id}
-                label={`${m.emoji} ${m.label}`}
-                selected={selectedMood === m.id}
-                onPress={() => setSelectedMood(selectedMood === m.id ? null : m.id)}
-              />
-            ))}
-          </View>
-        </Section>
+          {/* 현재 위치 카드 */}
+          {!customLocation && (
+            <LocationCard
+              status={locationStatus}
+              address={address}
+              addressLoading={addressLoading}
+              isDefaultLocation={isDefaultLocation}
+              onRetry={requestPermission}
+            />
+          )}
+
+          {/* 커스텀 위치 선택됨 */}
+          {customLocation && (
+            <View style={styles.customLocationCard}>
+              <Ionicons name="location" size={14} color={colors.primaryDark} />
+              <Text style={styles.customLocationText} numberOfLines={1}>
+                {customLocation.name}
+              </Text>
+              <TouchableOpacity onPress={clearCustomLocation} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Ionicons name="close-circle" size={16} color={colors.text.secondary} />
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {/* 위치 검색 토글 버튼 */}
+          {!showSearch && (
+            <TouchableOpacity
+              style={styles.searchToggleBtn}
+              onPress={() => setShowSearch(true)}
+            >
+              <Ionicons name="search-outline" size={13} color={colors.primary} />
+              <Text style={styles.searchToggleText}>
+                {customLocation ? "다른 위치로 변경" : "다른 위치로 검색"}
+              </Text>
+            </TouchableOpacity>
+          )}
+
+          {/* 위치 검색 입력창 */}
+          {showSearch && (
+            <View style={styles.searchBox}>
+              <View style={styles.searchInputRow}>
+                <Ionicons name="search-outline" size={16} color={colors.text.disabled} />
+                <TextInput
+                  style={styles.searchInput}
+                  placeholder="지역명 입력 (예: 홍대, 강남역)"
+                  placeholderTextColor={colors.text.disabled}
+                  value={searchQuery}
+                  onChangeText={setSearchQuery}
+                  autoFocus
+                  returnKeyType="search"
+                />
+                {searchLoading && <ActivityIndicator size="small" color={colors.primary} />}
+                <TouchableOpacity
+                  onPress={() => {
+                    setShowSearch(false);
+                    setSearchQuery("");
+                    setSuggestions([]);
+                  }}
+                >
+                  <Ionicons name="close" size={18} color={colors.text.secondary} />
+                </TouchableOpacity>
+              </View>
+
+              {suggestions.length > 0 && (
+                <View style={styles.suggestionList}>
+                  {suggestions.map((s, i) => (
+                    <TouchableOpacity
+                      key={i}
+                      style={[
+                        styles.suggestionItem,
+                        i < suggestions.length - 1 && styles.suggestionItemBorder,
+                      ]}
+                      onPress={() => selectSuggestion(s)}
+                    >
+                      <Ionicons name="location-outline" size={14} color={colors.primary} />
+                      <View style={styles.suggestionText}>
+                        <Text style={styles.suggestionName}>{s.name}</Text>
+                        {s.address ? (
+                          <Text style={styles.suggestionAddress} numberOfLines={1}>
+                            {s.address}
+                          </Text>
+                        ) : null}
+                      </View>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+            </View>
+          )}
+        </View>
 
         <Section title="음식 종류">
           <View style={styles.chipRow}>
@@ -127,7 +244,7 @@ export default function HomeScreen() {
               />
             ))}
           </View>
-          {locationStatus === "denied" && (
+          {locationStatus === "denied" && !customLocation && (
             <Text style={styles.locationNote}>
               위치 권한이 거부되어 거리 필터가 비활성화됩니다.
             </Text>
@@ -154,19 +271,14 @@ export default function HomeScreen() {
 
 function Section({
   title,
-  accessory,
   children,
 }: {
   title: string;
-  accessory?: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
     <View style={styles.section}>
-      <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>{title}</Text>
-        {accessory}
-      </View>
+      <Text style={styles.sectionTitle}>{title}</Text>
       {children}
     </View>
   );
@@ -249,22 +361,6 @@ const styles = StyleSheet.create({
 
   header: { marginBottom: spacing.lg },
 
-  locationCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.xs,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 6,
-    borderRadius: borderRadius.md,
-    marginTop: spacing.sm,
-  },
-  locationCardNeutral: { backgroundColor: colors.border },
-  locationCardSuccess: { backgroundColor: "#DBEAFE" },
-  locationCardDefault: { backgroundColor: "#FEF9C3" },
-  locationCardTextNeutral: { fontSize: typography.fontSizes.xs, color: colors.text.secondary },
-  locationCardTextSuccess: { flex: 1, fontSize: typography.fontSizes.xs, color: colors.primaryDark, fontWeight: typography.fontWeights.medium },
-  locationCardTextDefault: { flex: 1, fontSize: typography.fontSizes.xs, color: "#92400E", fontWeight: typography.fontWeights.medium },
-
   appName: {
     fontSize: typography.fontSizes.sm,
     fontWeight: typography.fontWeights.semibold,
@@ -277,19 +373,117 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSizes.xxl,
     fontWeight: typography.fontWeights.bold,
     color: colors.text.primary,
+    marginBottom: spacing.xs,
   },
 
-  section: { marginBottom: spacing.lg },
-  sectionHeader: {
+  // 현재 위치 카드
+  locationCard: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: spacing.sm,
+    gap: spacing.xs,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 6,
+    borderRadius: borderRadius.md,
+    marginTop: spacing.xs,
   },
+  locationCardNeutral: { backgroundColor: colors.border },
+  locationCardSuccess: { backgroundColor: "#DBEAFE" },
+  locationCardDefault: { backgroundColor: "#FEF9C3" },
+  locationCardTextNeutral: { fontSize: typography.fontSizes.xs, color: colors.text.secondary },
+  locationCardTextSuccess: { flex: 1, fontSize: typography.fontSizes.xs, color: colors.primaryDark, fontWeight: typography.fontWeights.medium },
+  locationCardTextDefault: { flex: 1, fontSize: typography.fontSizes.xs, color: "#92400E", fontWeight: typography.fontWeights.medium },
+
+  // 커스텀 위치 카드
+  customLocationCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 6,
+    borderRadius: borderRadius.md,
+    marginTop: spacing.xs,
+    backgroundColor: "#DBEAFE",
+  },
+  customLocationText: {
+    flex: 1,
+    fontSize: typography.fontSizes.xs,
+    color: colors.primaryDark,
+    fontWeight: typography.fontWeights.medium,
+  },
+
+  // 검색 토글 버튼
+  searchToggleBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginTop: spacing.xs,
+    alignSelf: "flex-start",
+    paddingVertical: 4,
+  },
+  searchToggleText: {
+    fontSize: typography.fontSizes.xs,
+    color: colors.primary,
+    fontWeight: typography.fontWeights.medium,
+  },
+
+  // 검색 입력창
+  searchBox: {
+    marginTop: spacing.sm,
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.lg,
+    borderWidth: 1,
+    borderColor: colors.primary,
+    overflow: "hidden",
+  },
+  searchInputRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: typography.fontSizes.md,
+    color: colors.text.primary,
+    paddingVertical: 0,
+  },
+
+  // 자동완성 목록
+  suggestionList: {
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  suggestionItem: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  suggestionItemBorder: {
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  suggestionText: { flex: 1 },
+  suggestionName: {
+    fontSize: typography.fontSizes.sm,
+    fontWeight: typography.fontWeights.semibold,
+    color: colors.text.primary,
+  },
+  suggestionAddress: {
+    fontSize: typography.fontSizes.xs,
+    color: colors.text.secondary,
+    marginTop: 2,
+  },
+
+  // 섹션
+  section: { marginBottom: spacing.lg },
   sectionTitle: {
     fontSize: typography.fontSizes.md,
     fontWeight: typography.fontWeights.semibold,
     color: colors.text.primary,
+    marginBottom: spacing.sm,
   },
 
   chipRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
