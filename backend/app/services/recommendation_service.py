@@ -16,7 +16,7 @@ class RecommendationService:
         self.preference_repo = PreferenceRepository(db)
 
     def generate(self, request: RecommendationRequest) -> List[Recommendation]:
-        restaurants = self.restaurant_repo.get_all(limit=200)
+        restaurants = self.restaurant_repo.get_all(limit=1000)
 
         user_lat, user_lng = self._parse_coords(request.location_lat, request.location_lng)
 
@@ -64,6 +64,16 @@ class RecommendationService:
         return None, None
 
     @staticmethod
+    def _has_valid_coords(r: Restaurant) -> bool:
+        """좌표가 유효한지 확인 (null 또는 0,0 제외)"""
+        if r.latitude is None or r.longitude is None:
+            return False
+        # 0,0 은 Kakao API 파싱 실패 시 기본값으로, 유효하지 않음
+        if r.latitude == 0.0 and r.longitude == 0.0:
+            return False
+        return True
+
+    @staticmethod
     def _filter_by_distance(
         restaurants: List[Restaurant],
         user_lat: Optional[float],
@@ -75,16 +85,13 @@ class RecommendationService:
 
         result = []
         for r in restaurants:
-            if r.latitude is None or r.longitude is None:
-                result.append(r)
+            if not RecommendationService._has_valid_coords(r):
                 continue
             dist = haversine_distance(user_lat, user_lng, r.latitude, r.longitude)
             if dist <= distance_km:
                 result.append(r)
 
-        # Fallback: if too few candidates, ignore distance and use all restaurants
-        if len(result) < 3:
-            return restaurants
+        # 반경 내 식당이 없으면 빈 리스트 반환 → 프론트에서 "근처 맛집 없음" 표시
         return result
 
     def _score_restaurants(
@@ -126,7 +133,7 @@ class RecommendationService:
             # Distance proximity bonus
             dist_km: Optional[float] = None
             if user_lat is not None and user_lng is not None:
-                if r.latitude is not None and r.longitude is not None:
+                if self._has_valid_coords(r):
                     dist_km = haversine_distance(user_lat, user_lng, r.latitude, r.longitude)
                     if dist_km <= 1:
                         score += 10
@@ -180,9 +187,9 @@ class RecommendationService:
 
         if dist_km is not None:
             if dist_km < 1:
-                parts.append(f"{dist_km * 1000:.0f} m away")
+                parts.append(f"{dist_km * 1000:.0f}m 거리")
             else:
-                parts.append(f"{dist_km:.1f} km away")
+                parts.append(f"{dist_km:.1f}km 거리")
 
         if not parts:
             parts.append("주변 인기 맛집")

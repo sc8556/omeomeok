@@ -90,8 +90,11 @@ def _parse_place(place: dict) -> Optional[dict]:
     phone = place.get("phone", "") or ""
 
     try:
-        lat = float(place.get("y", 0))
-        lng = float(place.get("x", 0))
+        lat = float(place.get("y") or 0)
+        lng = float(place.get("x") or 0)
+        # 0,0은 좌표 없음으로 처리
+        if lat == 0.0 or lng == 0.0:
+            lat, lng = None, None
     except (TypeError, ValueError):
         lat, lng = None, None
 

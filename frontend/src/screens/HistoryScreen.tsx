@@ -37,7 +37,7 @@ export default function HistoryScreen() {
         const res = await historyApi.getBySession(sessionId);
         setSections(groupItemsByDate(res.items));
       } catch {
-        setSections([]);
+        // 에러 시 기존 데이터 유지 (서버 cold start 등으로 실패해도 기록 유지)
       } finally {
         setLoading(false);
         setRefreshing(false);

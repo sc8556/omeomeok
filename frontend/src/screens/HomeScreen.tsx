@@ -47,7 +47,11 @@ export default function HomeScreen() {
         location_lat: location ? String(location.latitude) : undefined,
         location_lng: location ? String(location.longitude) : undefined,
       });
-      navigation.navigate("RecommendationResults", { response });
+      navigation.navigate("RecommendationResults", {
+        response,
+        distanceKm: selectedDistance,
+        isDefaultLocation,
+      });
     } catch (e: any) {
       const msg = e?.message || e?.toString() || "알 수 없는 오류";
       Alert.alert("오류", `추천 실패: ${msg}`);
@@ -220,17 +224,19 @@ function LocationCard({
         <Text style={styles.locationCardTextDefault} numberOfLines={1}>
           {address ?? "서울 중구 태평로1가 (기본 위치)"}
         </Text>
+        <Ionicons name="refresh-outline" size={14} color="#92400E" />
       </TouchableOpacity>
     );
   }
 
   return (
-    <View style={[styles.locationCard, styles.locationCardSuccess]}>
+    <TouchableOpacity style={[styles.locationCard, styles.locationCardSuccess]} onPress={onRetry}>
       <Ionicons name="location" size={14} color={colors.primaryDark} />
       <Text style={styles.locationCardTextSuccess} numberOfLines={1}>
         {address ?? "위치 확인됨"}
       </Text>
-    </View>
+      <Ionicons name="refresh-outline" size={14} color={colors.primaryDark} />
+    </TouchableOpacity>
   );
 }
 

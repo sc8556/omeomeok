@@ -20,7 +20,7 @@ type RouteType = RouteProp<RootStackParamList, "RecommendationResults">;
 export default function RecommendationResultsScreen() {
   const navigation = useNavigation<RootStackNavigationProp>();
   const route = useRoute<RouteType>();
-  const { response } = route.params;
+  const { response, distanceKm, isDefaultLocation } = route.params;
 
   return (
     <SafeAreaView style={styles.container}>
@@ -53,7 +53,9 @@ export default function RecommendationResultsScreen() {
         )}
         contentContainerStyle={styles.list}
         showsVerticalScrollIndicator={false}
-        ListEmptyComponent={<EmptyState />}
+        ListEmptyComponent={
+          <EmptyState distanceKm={distanceKm} isDefaultLocation={isDefaultLocation} />
+        }
       />
     </SafeAreaView>
   );
@@ -74,7 +76,7 @@ function RestaurantCard({
   const meta = CATEGORY_META[restaurant.category] ?? DEFAULT_CATEGORY_META;
   const distText = reason ? extractDistance(reason) : null;
   const reasonWithoutDist = reason
-    ? reason.replace(/,?\s*\d+(?:\.\d+)?\s*(?:km|m)\s+away/i, "").trim()
+    ? reason.replace(/,?\s*\d+(?:\.\d+)?(?:km|m)\s*거리/g, "").trim()
     : null;
 
   return (
@@ -187,13 +189,21 @@ function DistanceBadge({ text }: { text: string }) {
   );
 }
 
-function EmptyState() {
+function EmptyState({
+  distanceKm,
+  isDefaultLocation,
+}: {
+  distanceKm: number;
+  isDefaultLocation: boolean;
+}) {
   return (
     <View style={styles.emptyContainer}>
-      <Text style={styles.emptyEmoji}>🍽️</Text>
-      <Text style={styles.emptyTitle}>추천 결과가 없어요</Text>
+      <Text style={styles.emptyEmoji}>📍</Text>
+      <Text style={styles.emptyTitle}>근처에 등록된 맛집이 없어요</Text>
       <Text style={styles.emptyBody}>
-        거리를 늘리거나 필터를 줄여보세요.
+        {isDefaultLocation
+          ? "현재 기본 위치(서울 시청)를 사용 중이에요.\nGPS 권한을 허용하거나 거리를 늘려보세요."
+          : `현재 위치 기준 ${distanceKm}km 내에\n등록된 식당이 없어요.\n거리를 늘리거나 필터를 줄여보세요.`}
       </Text>
     </View>
   );

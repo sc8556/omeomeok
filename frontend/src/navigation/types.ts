@@ -5,7 +5,7 @@ import type { RecommendationResponse } from "@/types";
 export type RootStackParamList = {
   Onboarding: undefined;
   Main: undefined;
-  RecommendationResults: { response: RecommendationResponse };
+  RecommendationResults: { response: RecommendationResponse; distanceKm: number; isDefaultLocation: boolean };
   RestaurantDetail: { restaurantId: number };
 };
 

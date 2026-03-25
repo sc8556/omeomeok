@@ -13,14 +13,14 @@ export function truncate(text: string, maxLength: number): string {
 
 /**
  * Extracts distance text from a reason string produced by the backend.
- * e.g. "Highly rated, 1.2 km away" → "1.2 km"
- *      "Top-rated, 794 m away"     → "794 m"
+ * e.g. "높은 평점, 1.2km 거리" → "1.2km"
+ *      "주변 인기 맛집, 794m 거리" → "794m"
  * Returns null if no distance token is found.
  */
 export function extractDistance(reason: string): string | null {
-  const match = reason.match(/(\d+(?:\.\d+)?)\s*(km|m)\s+away/i);
+  const match = reason.match(/(\d+(?:\.\d+)?)(km|m)\s*거리/);
   if (!match) return null;
-  return `${match[1]} ${match[2]}`;
+  return `${match[1]}${match[2]}`;
 }
 
 /**
