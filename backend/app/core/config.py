@@ -9,6 +9,7 @@ class Settings(BaseSettings):
     # Comma-separated list stored as string; parsed into list at runtime
     allowed_origins_str: str = "http://localhost:8081,exp://localhost:8081"
     kakao_api_key: str = ""
+    seoul_api_key: str = ""
 
     @property
     def allowed_origins(self) -> list[str]:
