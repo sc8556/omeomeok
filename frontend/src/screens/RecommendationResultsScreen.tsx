@@ -101,8 +101,12 @@ function RestaurantCard({
 
       {/* Rating row */}
       <View style={styles.ratingRow}>
-        <Ionicons name="star" size={13} color="#F59E0B" />
-        <Text style={styles.ratingText}>{restaurant.rating.toFixed(1)}</Text>
+        {restaurant.rating > 0 && (
+          <>
+            <Ionicons name="star" size={13} color="#F59E0B" />
+            <Text style={styles.ratingText}>{restaurant.rating.toFixed(1)}</Text>
+          </>
+        )}
         {restaurant.address ? (
           <>
             <Text style={styles.dot}>·</Text>
@@ -171,7 +175,7 @@ function CategoryBadge({
 }
 
 function PriceBadge({ range }: { range: number }) {
-  const labels = ["", "₩", "₩₩", "₩₩₩"];
+  const labels: Record<number, string> = { 1: "₩", 2: "₩₩", 3: "₩₩₩" };
   const label = labels[range] ?? "₩₩";
   return (
     <View style={[styles.tag, { backgroundColor: "#F0FDFA" }]}>

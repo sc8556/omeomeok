@@ -59,6 +59,13 @@ export default function RestaurantDetailScreen() {
   const priceLabels = ["", "저렴", "보통", "고급"];
   const categoryLabel = FOOD_TYPE_LABELS[restaurant.category] ?? restaurant.category;
 
+  const openKakaoPlace = () => {
+    if (!restaurant.place_url) return;
+    Linking.openURL(restaurant.place_url).catch(() =>
+      Alert.alert("오류", "카카오맵을 열 수 없습니다.")
+    );
+  };
+
   const openMap = () => {
     let url: string;
     if (restaurant.latitude && restaurant.longitude) {
@@ -121,14 +128,14 @@ export default function RestaurantDetailScreen() {
             icon="star"
             iconColor="#F59E0B"
             label="평점"
-            value={restaurant.rating.toFixed(1)}
+            value={restaurant.rating > 0 ? restaurant.rating.toFixed(1) : "—"}
           />
           <View style={styles.statDivider} />
           <Stat
             icon="cash-outline"
             iconColor={colors.secondary}
             label="가격대"
-            value={priceLabels[restaurant.price_range] ?? "—"}
+            value={priceLabels[restaurant.price_range] || "—"}
           />
         </View>
 
@@ -181,6 +188,14 @@ export default function RestaurantDetailScreen() {
             </TouchableOpacity>
           ) : null}
         </View>
+
+        {restaurant.place_url ? (
+          <TouchableOpacity style={styles.kakaoBtn} onPress={openKakaoPlace}>
+            <Ionicons name="restaurant-outline" size={18} color="#3A1D96" />
+            <Text style={styles.kakaoBtnText}>카카오맵에서 메뉴 보기</Text>
+            <Ionicons name="open-outline" size={14} color="#3A1D96" />
+          </TouchableOpacity>
+        ) : null}
 
       </ScrollView>
     </SafeAreaView>
@@ -365,6 +380,22 @@ const styles = StyleSheet.create({
   },
   actionBtnOutlineText: {
     color: colors.primary,
+  },
+
+  kakaoBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.xs,
+    marginTop: spacing.sm,
+    paddingVertical: spacing.md,
+    borderRadius: borderRadius.full,
+    backgroundColor: "#EDE9FE",
+  },
+  kakaoBtnText: {
+    fontSize: typography.fontSizes.md,
+    fontWeight: typography.fontWeights.semibold,
+    color: "#3A1D96",
   },
 
   errorText: {

@@ -13,6 +13,7 @@ class RestaurantBase(BaseModel):
     description: Optional[str] = None
     phone: Optional[str] = None
     image_url: Optional[str] = None
+    place_url: Optional[str] = None
 
 
 class RestaurantCreate(RestaurantBase):

@@ -18,7 +18,7 @@ import { CATEGORY_META, DEFAULT_CATEGORY_META, FOOD_TYPE_LABELS } from "@/consta
 import { restaurantsApi } from "@/services/api";
 import type { Restaurant } from "@/types";
 
-const PRICE_LABELS = ["", "₩", "₩₩", "₩₩₩"];
+const PRICE_LABELS: Record<number, string> = { 1: "₩", 2: "₩₩", 3: "₩₩₩" };
 
 export default function RestaurantListScreen() {
   const navigation = useNavigation<RootStackNavigationProp>();
@@ -147,8 +147,12 @@ function RestaurantRow({
             <Text style={[styles.tagText, { color: meta.text }]}>{categoryLabel}</Text>
           </View>
           <Text style={styles.price}>{priceLabel}</Text>
-          <Ionicons name="star" size={11} color="#F59E0B" />
-          <Text style={styles.rating}>{item.rating.toFixed(1)}</Text>
+          {item.rating > 0 && (
+            <>
+              <Ionicons name="star" size={11} color="#F59E0B" />
+              <Text style={styles.rating}>{item.rating.toFixed(1)}</Text>
+            </>
+          )}
         </View>
         {item.address ? (
           <Text style={styles.address} numberOfLines={1}>

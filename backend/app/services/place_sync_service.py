@@ -113,6 +113,7 @@ def _parse_place(place: dict) -> Optional[dict]:
         "rating": 0.0,
         "description": "",
         "image_url": "",
+        "place_url": place.get("place_url", "") or "",
     }
 
 

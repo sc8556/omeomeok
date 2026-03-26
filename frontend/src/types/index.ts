@@ -10,6 +10,7 @@ export interface Restaurant {
   description?: string;
   phone?: string;
   image_url?: string;
+  place_url?: string;
 }
 
 export interface RecommendationItem {

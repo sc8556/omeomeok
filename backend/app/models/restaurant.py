@@ -17,6 +17,7 @@ class Restaurant(Base):
     description = Column(Text)
     phone = Column(String(50))
     image_url = Column(String(500))
+    place_url = Column(String(500))
     kakao_id = Column(String(50), unique=True, nullable=True, index=True)
 
     recommendations = relationship("Recommendation", back_populates="restaurant")
