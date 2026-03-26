@@ -33,6 +33,9 @@ class RestaurantRepository:
         existing = self.get_by_kakao_id(kakao_id)
         if existing:
             for key, value in fields.items():
+                # 이미 평점이 있는 경우 0.0으로 덮어쓰지 않음
+                if key == "rating" and (existing.rating or 0.0) > 0.0 and value == 0.0:
+                    continue
                 setattr(existing, key, value)
             self.db.commit()
             self.db.refresh(existing)

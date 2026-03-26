@@ -92,10 +92,9 @@ function RestaurantCard({
         <ScoreBadge score={score} />
       </View>
 
-      {/* Tags row: category + price + distance */}
+      {/* Tags row: category + distance */}
       <View style={styles.tagsRow}>
         <CategoryBadge category={restaurant.category} meta={meta} />
-        <PriceBadge range={restaurant.price_range} />
         {distText && <DistanceBadge text={distText} />}
       </View>
 
@@ -170,16 +169,6 @@ function CategoryBadge({
       <Text style={[styles.tagText, { color: meta.text }]}>
         {meta.emoji} {FOOD_TYPE_LABELS[category] ?? category}
       </Text>
-    </View>
-  );
-}
-
-function PriceBadge({ range }: { range: number }) {
-  const labels: Record<number, string> = { 1: "₩", 2: "₩₩", 3: "₩₩₩" };
-  const label = labels[range] ?? "₩₩";
-  return (
-    <View style={[styles.tag, { backgroundColor: "#F0FDFA" }]}>
-      <Text style={[styles.tagText, { color: "#0F766E" }]}>{label}</Text>
     </View>
   );
 }

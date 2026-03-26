@@ -56,29 +56,12 @@ export default function RestaurantDetailScreen() {
   }
 
   const meta = CATEGORY_META[restaurant.category] ?? DEFAULT_CATEGORY_META;
-  const priceLabels = ["", "저렴", "보통", "고급"];
   const categoryLabel = FOOD_TYPE_LABELS[restaurant.category] ?? restaurant.category;
 
   const openKakaoPlace = () => {
     if (!restaurant.place_url) return;
     Linking.openURL(restaurant.place_url).catch(() =>
       Alert.alert("오류", "카카오맵을 열 수 없습니다.")
-    );
-  };
-
-  const openMap = () => {
-    let url: string;
-    if (restaurant.latitude && restaurant.longitude) {
-      url = `https://www.google.com/maps/search/?api=1&query=${restaurant.latitude},${restaurant.longitude}`;
-    } else if (restaurant.address) {
-      const query = encodeURIComponent(`${restaurant.name} ${restaurant.address}`);
-      url = `https://www.google.com/maps/search/?api=1&query=${query}`;
-    } else {
-      const query = encodeURIComponent(restaurant.name);
-      url = `https://www.google.com/maps/search/?api=1&query=${query}`;
-    }
-    Linking.openURL(url).catch(() =>
-      Alert.alert("오류", "지도를 열 수 없습니다.")
     );
   };
 
@@ -107,47 +90,36 @@ export default function RestaurantDetailScreen() {
           </View>
           <Text style={styles.name}>{restaurant.name}</Text>
 
-          {/* 카테고리 + 가격 배지 */}
+          {/* 카테고리 배지 */}
           <View style={styles.badgeRow}>
             <View style={[styles.badge, { backgroundColor: meta.bg }]}>
               <Text style={[styles.badgeText, { color: meta.text }]}>
                 {categoryLabel}
               </Text>
             </View>
-            <View style={[styles.badge, { backgroundColor: "#F0FDFA" }]}>
-              <Text style={[styles.badgeText, { color: "#0F766E" }]}>
-                {["", "₩", "₩₩", "₩₩₩"][restaurant.price_range] ?? "₩₩"}
-              </Text>
-            </View>
           </View>
         </View>
 
-        {/* 평점 / 가격대 스탯 */}
-        <View style={styles.statsRow}>
-          <Stat
-            icon="star"
-            iconColor="#F59E0B"
-            label="평점"
-            value={restaurant.rating > 0 ? restaurant.rating.toFixed(1) : "—"}
-          />
-          <View style={styles.statDivider} />
-          <Stat
-            icon="cash-outline"
-            iconColor={colors.secondary}
-            label="가격대"
-            value={priceLabels[restaurant.price_range] || "—"}
-          />
-        </View>
+        {/* 평점 스탯 */}
+        {restaurant.rating > 0 ? (
+          <View style={styles.statsRow}>
+            <Stat
+              icon="star"
+              iconColor="#F59E0B"
+              label="평점"
+              value={restaurant.rating.toFixed(1)}
+            />
+          </View>
+        ) : null}
 
-        {/* 주소 — 탭하면 지도 */}
+        {/* 주소 */}
         {restaurant.address ? (
-          <TouchableOpacity style={styles.infoRow} onPress={openMap}>
+          <View style={styles.infoRow}>
             <View style={[styles.infoIconBox, { backgroundColor: "#EFF6FF" }]}>
               <Ionicons name="location-outline" size={18} color="#2563EB" />
             </View>
             <Text style={styles.infoText}>{restaurant.address}</Text>
-            <Ionicons name="chevron-forward" size={16} color={colors.text.disabled} />
-          </TouchableOpacity>
+          </View>
         ) : null}
 
         {/* 전화번호 — 탭하면 전화 */}
@@ -170,24 +142,14 @@ export default function RestaurantDetailScreen() {
         ) : null}
 
         {/* 액션 버튼 */}
-        <View style={styles.actionRow}>
-          <TouchableOpacity style={styles.actionBtn} onPress={openMap}>
-            <Ionicons name="map-outline" size={20} color={colors.text.inverse} />
-            <Text style={styles.actionBtnText}>지도에서 보기</Text>
-          </TouchableOpacity>
-
-          {restaurant.phone ? (
-            <TouchableOpacity
-              style={[styles.actionBtn, styles.actionBtnOutline]}
-              onPress={callPhone}
-            >
-              <Ionicons name="call-outline" size={20} color={colors.primary} />
-              <Text style={[styles.actionBtnText, styles.actionBtnOutlineText]}>
-                전화 걸기
-              </Text>
+        {restaurant.phone ? (
+          <View style={styles.actionRow}>
+            <TouchableOpacity style={styles.actionBtn} onPress={callPhone}>
+              <Ionicons name="call-outline" size={20} color={colors.text.inverse} />
+              <Text style={styles.actionBtnText}>전화 걸기</Text>
             </TouchableOpacity>
-          ) : null}
-        </View>
+          </View>
+        ) : null}
 
         {restaurant.place_url ? (
           <TouchableOpacity style={styles.kakaoBtn} onPress={openKakaoPlace}>

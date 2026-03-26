@@ -20,6 +20,34 @@ from sqlalchemy.orm import Session
 from app.repositories.restaurant_repository import RestaurantRepository
 
 KAKAO_SEARCH_URL = "https://dapi.kakao.com/v2/local/search/keyword.json"
+KAKAO_PLACE_DETAIL_URL = "https://place.map.kakao.com/v1/web/place/basicinfo"
+
+
+def _fetch_kakao_rating(kakao_id: str) -> Optional[float]:
+    """카카오맵 내부 API에서 장소 평점을 가져옵니다. 실패 시 None 반환."""
+    try:
+        resp = httpx.get(
+            KAKAO_PLACE_DETAIL_URL,
+            params={"id": kakao_id},
+            timeout=5,
+            headers={"User-Agent": "Mozilla/5.0"},
+        )
+        if resp.status_code != 200:
+            return None
+        data = resp.json()
+        # 응답 구조: {"basicInfo": {"scoresum": 45.0, "scorecnt": 10, ...}}
+        basic = data.get("basicInfo") or data.get("place") or {}
+        scoresum = basic.get("scoresum") or basic.get("score") or basic.get("rating")
+        scorecnt = basic.get("scorecnt") or basic.get("reviewCount") or 1
+        if scoresum and scorecnt and int(scorecnt) > 0:
+            avg = float(scoresum) / float(scorecnt)
+            return round(min(avg, 5.0), 1)
+        # 다른 형식: {"score": 4.5}
+        if isinstance(scoresum, float) and scoresum <= 5.0:
+            return round(scoresum, 1)
+    except Exception:
+        pass
+    return None
 
 # Map keywords found in Kakao category_name to our internal category strings.
 # Kakao category_name looks like "음식점 > 한식 > 삼겹살"

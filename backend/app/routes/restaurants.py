@@ -6,7 +6,7 @@ from app.core.config import get_settings
 from app.core.dependencies import get_db
 from app.schemas.restaurant import RestaurantCreate, RestaurantRead
 from app.services.restaurant_service import RestaurantService
-from app.services.place_sync_service import PlaceSyncService
+from app.services.place_sync_service import PlaceSyncService, _fetch_kakao_rating
 from app.services.seoul_sync_service import SeoulSyncService
 
 router = APIRouter(prefix="/restaurants", tags=["restaurants"])
@@ -70,6 +70,45 @@ class SeoulSyncRequest(BaseModel):
     gu: str = Field(None, description="특정 구 이름 (예: 강남구). 비우면 전체.")
     max_records: int = Field(1000, ge=100, le=10000, description="최대 조회 건수")
     page_size: int = Field(500, ge=100, le=1000, description="페이지당 건수")
+
+
+class EnrichResult(BaseModel):
+    updated: int
+    skipped: int
+    errors: int
+
+
+@router.post("/enrich/ratings", response_model=EnrichResult)
+def enrich_ratings(db: Session = Depends(get_db)):
+    """카카오맵 내부 API에서 평점을 가져와 rating=0인 식당에 채워넣습니다."""
+    from app.models.restaurant import Restaurant as RestaurantModel
+    from sqlalchemy import and_
+
+    targets = (
+        db.query(RestaurantModel)
+        .filter(
+            and_(
+                RestaurantModel.kakao_id.isnot(None),
+                RestaurantModel.rating == 0.0,
+            )
+        )
+        .all()
+    )
+
+    counts = {"updated": 0, "skipped": 0, "errors": 0}
+    for r in targets:
+        try:
+            rating = _fetch_kakao_rating(r.kakao_id)
+            if rating and rating > 0:
+                r.rating = rating
+                counts["updated"] += 1
+            else:
+                counts["skipped"] += 1
+        except Exception:
+            counts["errors"] += 1
+
+    db.commit()
+    return EnrichResult(**counts)
 
 
 @router.post("/sync/seoul", response_model=SyncResult)

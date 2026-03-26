@@ -25,7 +25,7 @@ class RecommendationService:
 
         # Step 2: score remaining candidates
         scored = self._score_restaurants(candidates, request, user_lat, user_lng)
-        top = sorted(scored, key=lambda x: x[1], reverse=True)[:5]
+        top = sorted(scored, key=lambda x: x[1], reverse=True)
 
         records = [
             Recommendation(
