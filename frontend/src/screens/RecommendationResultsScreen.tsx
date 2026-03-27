@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import {
   View,
   Text,
@@ -17,10 +17,19 @@ import type { RecommendationItem } from "@/types";
 
 type RouteType = RouteProp<RootStackParamList, "RecommendationResults">;
 
+const PAGE_SIZE = 10;
+
 export default function RecommendationResultsScreen() {
   const navigation = useNavigation<RootStackNavigationProp>();
   const route = useRoute<RouteType>();
   const { response, distanceKm, isDefaultLocation } = route.params;
+  const [currentPage, setCurrentPage] = useState(0);
+
+  const totalPages = Math.ceil(response.results.length / PAGE_SIZE);
+  const pagedResults = response.results.slice(
+    currentPage * PAGE_SIZE,
+    currentPage * PAGE_SIZE + PAGE_SIZE
+  );
 
   return (
     <SafeAreaView style={styles.container}>
@@ -38,12 +47,12 @@ export default function RecommendationResultsScreen() {
       </View>
 
       <FlatList
-        data={response.results}
+        data={pagedResults}
         keyExtractor={(item) => String(item.id)}
         renderItem={({ item, index }) => (
           <RestaurantCard
             item={item}
-            rank={index + 1}
+            rank={currentPage * PAGE_SIZE + index + 1}
             onPress={() =>
               navigation.navigate("RestaurantDetail", {
                 restaurantId: item.restaurant.id,
@@ -55,6 +64,16 @@ export default function RecommendationResultsScreen() {
         showsVerticalScrollIndicator={false}
         ListEmptyComponent={
           <EmptyState distanceKm={distanceKm} isDefaultLocation={isDefaultLocation} />
+        }
+        ListFooterComponent={
+          totalPages > 1 ? (
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              onPrev={() => setCurrentPage((p) => p - 1)}
+              onNext={() => setCurrentPage((p) => p + 1)}
+            />
+          ) : null
         }
       />
     </SafeAreaView>
@@ -178,6 +197,42 @@ function DistanceBadge({ text }: { text: string }) {
     <View style={[styles.tag, styles.tagDist]}>
       <Ionicons name="location-outline" size={11} color={colors.primary} />
       <Text style={[styles.tagText, { color: colors.primary }]}>{text}</Text>
+    </View>
+  );
+}
+
+function Pagination({
+  currentPage,
+  totalPages,
+  onPrev,
+  onNext,
+}: {
+  currentPage: number;
+  totalPages: number;
+  onPrev: () => void;
+  onNext: () => void;
+}) {
+  return (
+    <View style={styles.pagination}>
+      <TouchableOpacity
+        style={[styles.pageBtn, currentPage === 0 && styles.pageBtnDisabled]}
+        onPress={onPrev}
+        disabled={currentPage === 0}
+      >
+        <Ionicons name="chevron-back" size={18} color={currentPage === 0 ? colors.text.disabled : colors.primary} />
+        <Text style={[styles.pageBtnText, currentPage === 0 && styles.pageBtnTextDisabled]}>이전</Text>
+      </TouchableOpacity>
+
+      <Text style={styles.pageIndicator}>{currentPage + 1} / {totalPages}</Text>
+
+      <TouchableOpacity
+        style={[styles.pageBtn, currentPage === totalPages - 1 && styles.pageBtnDisabled]}
+        onPress={onNext}
+        disabled={currentPage === totalPages - 1}
+      >
+        <Text style={[styles.pageBtnText, currentPage === totalPages - 1 && styles.pageBtnTextDisabled]}>다음</Text>
+        <Ionicons name="chevron-forward" size={18} color={currentPage === totalPages - 1 ? colors.text.disabled : colors.primary} />
+      </TouchableOpacity>
     </View>
   );
 }
@@ -354,6 +409,42 @@ const styles = StyleSheet.create({
     position: "absolute",
     right: spacing.md,
     bottom: spacing.md,
+  },
+
+  // ── Pagination ──
+  pagination: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.md,
+    marginBottom: spacing.xl,
+  },
+  pageBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: colors.primary,
+  },
+  pageBtnDisabled: {
+    borderColor: colors.border,
+  },
+  pageBtnText: {
+    fontSize: typography.fontSizes.sm,
+    fontWeight: typography.fontWeights.medium,
+    color: colors.primary,
+  },
+  pageBtnTextDisabled: {
+    color: colors.text.disabled,
+  },
+  pageIndicator: {
+    fontSize: typography.fontSizes.md,
+    fontWeight: typography.fontWeights.semibold,
+    color: colors.text.secondary,
   },
 
   // ── Empty ──
