@@ -1,10 +1,11 @@
-from typing import List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 from sqlalchemy.orm import Session
 from app.models.recommendation import Recommendation
 from app.models.restaurant import Restaurant
 from app.repositories.restaurant_repository import RestaurantRepository
 from app.repositories.recommendation_repository import RecommendationRepository
 from app.repositories.preference_repository import PreferenceRepository
+from app.repositories.user_rating_repository import UserRatingRepository
 from app.schemas.recommendation import RecommendationRequest
 from app.utils.helpers import haversine_distance
 
@@ -14,6 +15,7 @@ class RecommendationService:
         self.restaurant_repo = RestaurantRepository(db)
         self.recommendation_repo = RecommendationRepository(db)
         self.preference_repo = PreferenceRepository(db)
+        self.user_rating_repo = UserRatingRepository(db)
 
     def generate(self, request: RecommendationRequest) -> List[Recommendation]:
         restaurants = self.restaurant_repo.get_all(limit=2000)
@@ -23,15 +25,19 @@ class RecommendationService:
         # Step 1: filter by distance (only when user coordinates are available)
         candidates = self._filter_by_distance(restaurants, user_lat, user_lng, request.distance_km)
 
-        # Step 2: score remaining candidates
-        scored = self._score_restaurants(candidates, request, user_lat, user_lng)
+        # Step 2: bulk fetch user ratings for candidates
+        candidate_ids = [r.id for r in candidates]
+        user_ratings = self.user_rating_repo.get_avg_ratings_bulk(candidate_ids)
+
+        # Step 3: score remaining candidates
+        scored = self._score_restaurants(candidates, request, user_lat, user_lng, user_ratings)
         top = sorted(scored, key=lambda x: x[1], reverse=True)[:30]
 
         records = [
             Recommendation(
                 session_id=request.session_id,
                 restaurant_id=r.id,
-                reason=self._build_reason(r, request, dist_km),
+                reason=self._build_reason(r, request, dist_km, user_ratings),
                 score=score,
                 context_snapshot=request.model_dump(),
             )
@@ -100,6 +106,7 @@ class RecommendationService:
         request: RecommendationRequest,
         user_lat: Optional[float],
         user_lng: Optional[float],
+        user_ratings: Dict[int, Tuple[float, int]] = {},
     ) -> List[Tuple[Restaurant, int, Optional[float]]]:
         mood_profile = self._MOOD_PROFILE.get(request.mood or "", {})
         results = []
@@ -127,8 +134,30 @@ class RecommendationService:
                 else:
                     score -= mood_profile.get("penalty", 0)
 
-            # Rating bonus (up to 10 pts)
-            score += int((r.rating or 0.0) * 2)
+            # 사용자 평점 보너스 (앱 내 평점 우선, 없으면 카카오 rating 사용)
+            avg_user_rating, rating_count = user_ratings.get(r.id, (0.0, 0))
+            if rating_count > 0:
+                # 앱 사용자 평점: 최대 15점 (높은 신뢰도)
+                if avg_user_rating >= 4.5:
+                    score += 15
+                elif avg_user_rating >= 4.0:
+                    score += 10
+                elif avg_user_rating >= 3.5:
+                    score += 5
+                elif avg_user_rating < 2.5:
+                    score -= 10  # 낮은 평점 페널티
+            else:
+                # 카카오 외부 평점 (up to 10 pts)
+                score += int((r.rating or 0.0) * 2)
+
+            # 네이버 리뷰수 보너스 (최대 8점)
+            naver_count = r.naver_review_count or 0
+            if naver_count >= 500:
+                score += 8
+            elif naver_count >= 200:
+                score += 5
+            elif naver_count >= 50:
+                score += 3
 
             # Distance proximity bonus
             dist_km: Optional[float] = None
@@ -166,6 +195,7 @@ class RecommendationService:
         restaurant: Restaurant,
         request: RecommendationRequest,
         dist_km: Optional[float],
+        user_ratings: Dict[int, Tuple[float, int]] = {},
     ) -> str:
         parts = []
 
@@ -180,10 +210,20 @@ class RecommendationService:
             if mood_label:
                 parts.append(f"{mood_label} 분위기에 어울려요")
 
-        if restaurant.rating >= 4.5:
+        # 사용자 평점 우선 표시
+        avg_user_rating, rating_count = user_ratings.get(restaurant.id, (0.0, 0))
+        if rating_count > 0:
+            if avg_user_rating >= 4.5:
+                parts.append(f"앱 평점 {avg_user_rating:.1f}★ ({rating_count}명)")
+            elif avg_user_rating >= 4.0:
+                parts.append(f"앱 평점 {avg_user_rating:.1f}★")
+        elif restaurant.rating >= 4.5:
             parts.append("최고 평점")
         elif restaurant.rating >= 4.0:
             parts.append("높은 평점")
+
+        if (restaurant.naver_review_count or 0) >= 200:
+            parts.append(f"네이버 리뷰 {restaurant.naver_review_count}개")
 
         if dist_km is not None:
             if dist_km < 1:

@@ -4,10 +4,11 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app.core.dependencies import get_db
-from app.schemas.restaurant import RestaurantCreate, RestaurantRead
+from app.schemas.restaurant import RestaurantCreate, RestaurantRead, RestaurantDetailRead
 from app.services.restaurant_service import RestaurantService
 from app.services.place_sync_service import PlaceSyncService, _fetch_kakao_rating
 from app.services.seoul_sync_service import SeoulSyncService
+from app.repositories.user_rating_repository import UserRatingRepository
 
 router = APIRouter(prefix="/restaurants", tags=["restaurants"])
 
@@ -18,13 +19,18 @@ def list_restaurants(skip: int = 0, limit: int = 100, db: Session = Depends(get_
     return service.list_all(skip=skip, limit=limit)
 
 
-@router.get("/{restaurant_id}", response_model=RestaurantRead)
+@router.get("/{restaurant_id}", response_model=RestaurantDetailRead)
 def get_restaurant(restaurant_id: int, db: Session = Depends(get_db)):
     service = RestaurantService(db)
     restaurant = service.get_detail(restaurant_id)
     if not restaurant:
         raise HTTPException(status_code=404, detail="Restaurant not found")
-    return restaurant
+    summary = UserRatingRepository(db).get_summary(restaurant_id)
+    result = RestaurantDetailRead.model_validate(restaurant)
+    if summary["count"] > 0:
+        result.user_rating_avg = summary["avg_overall"]
+        result.user_rating_count = summary["count"]
+    return result
 
 
 @router.post("", response_model=RestaurantRead, status_code=201)
@@ -101,6 +107,44 @@ def enrich_ratings(db: Session = Depends(get_db)):
             rating = _fetch_kakao_rating(r.kakao_id)
             if rating and rating > 0:
                 r.rating = rating
+                counts["updated"] += 1
+            else:
+                counts["skipped"] += 1
+        except Exception:
+            counts["errors"] += 1
+
+    db.commit()
+    return EnrichResult(**counts)
+
+
+@router.post("/enrich/naver", response_model=EnrichResult)
+def enrich_naver_reviews(db: Session = Depends(get_db)):
+    """네이버 로컬 API로 리뷰 수를 가져와 naver_review_count가 0인 식당에 채웁니다."""
+    from app.models.restaurant import Restaurant as RestaurantModel
+    from app.services.naver_service import fetch_naver_review_count
+
+    settings = get_settings()
+    if not settings.naver_client_id or not settings.naver_client_secret:
+        raise HTTPException(status_code=503, detail="NAVER_CLIENT_ID / NAVER_CLIENT_SECRET가 설정되지 않았습니다.")
+
+    targets = (
+        db.query(RestaurantModel)
+        .filter(RestaurantModel.naver_review_count == 0)
+        .limit(200)  # 과금 방지: 1회 최대 200개
+        .all()
+    )
+
+    counts = {"updated": 0, "skipped": 0, "errors": 0}
+    for r in targets:
+        try:
+            count = fetch_naver_review_count(
+                r.name,
+                r.address or "",
+                settings.naver_client_id,
+                settings.naver_client_secret,
+            )
+            if count is not None:
+                r.naver_review_count = count
                 counts["updated"] += 1
             else:
                 counts["skipped"] += 1

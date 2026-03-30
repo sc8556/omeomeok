@@ -10,6 +10,9 @@ class Settings(BaseSettings):
     allowed_origins_str: str = "http://localhost:8081,exp://localhost:8081"
     kakao_api_key: str = ""
     seoul_api_key: str = ""
+    naver_client_id: str = ""
+    naver_client_secret: str = ""
+    anthropic_api_key: str = ""
 
     @property
     def allowed_origins(self) -> list[str]:

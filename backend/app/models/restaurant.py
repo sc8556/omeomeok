@@ -19,5 +19,7 @@ class Restaurant(Base):
     image_url = Column(String(500))
     place_url = Column(String(500))
     kakao_id = Column(String(50), unique=True, nullable=True, index=True)
+    naver_review_count = Column(Integer, default=0)  # 네이버 리뷰 수
 
     recommendations = relationship("Recommendation", back_populates="restaurant")
+    user_ratings = relationship("UserRating", back_populates="restaurant")

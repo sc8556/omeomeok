@@ -29,6 +29,7 @@ export default function HomeScreen() {
   const [selectedFoodTypes, setSelectedFoodTypes] = useState<string[]>([]);
   const [selectedDistance, setSelectedDistance] = useState<number>(5);
   const [loading, setLoading] = useState(false);
+  const [aiContext, setAiContext] = useState("");
 
   // 위치 검색
   const [searchQuery, setSearchQuery] = useState("");
@@ -82,14 +83,19 @@ export default function HomeScreen() {
   const handleRecommend = async () => {
     setLoading(true);
     try {
-      const response = await recommendationsApi.create({
+      const commonParams = {
         session_id: sessionId,
         budget: selectedBudget ?? undefined,
         food_types: selectedFoodTypes,
         distance_km: selectedDistance,
         location_lat: activeLocation ? String(activeLocation.latitude) : undefined,
         location_lng: activeLocation ? String(activeLocation.longitude) : undefined,
-      });
+      };
+
+      const response = aiContext.trim()
+        ? await recommendationsApi.createAI({ ...commonParams, context: aiContext.trim() })
+        : await recommendationsApi.create(commonParams);
+
       navigation.navigate("RecommendationResults", {
         response,
         distanceKm: selectedDistance,
@@ -251,6 +257,26 @@ export default function HomeScreen() {
           )}
         </Section>
 
+        {/* AI 컨텍스트 입력 */}
+        <View style={styles.aiSection}>
+          <View style={styles.aiLabelRow}>
+            <Ionicons name="sparkles" size={14} color={colors.primary} />
+            <Text style={styles.aiLabel}>AI 추천 (선택)</Text>
+          </View>
+          <TextInput
+            style={styles.aiInput}
+            placeholder="상황을 알려주세요 (예: 100일 기념일, 조용한 곳)"
+            placeholderTextColor={colors.text.disabled}
+            value={aiContext}
+            onChangeText={setAiContext}
+            returnKeyType="done"
+            multiline={false}
+          />
+          {aiContext.trim().length > 0 && (
+            <Text style={styles.aiHint}>AI가 상황에 맞는 식당을 골라드려요</Text>
+          )}
+        </View>
+
         <TouchableOpacity
           style={[styles.cta, loading && styles.ctaDisabled]}
           onPress={handleRecommend}
@@ -259,7 +285,9 @@ export default function HomeScreen() {
           {loading ? (
             <ActivityIndicator color={colors.text.inverse} />
           ) : (
-            <Text style={styles.ctaText}>맛집 찾기 🍴</Text>
+            <Text style={styles.ctaText}>
+              {aiContext.trim() ? "AI 맞춤 추천 받기 ✨" : "맛집 찾기 🍴"}
+            </Text>
           )}
         </TouchableOpacity>
       </ScrollView>
@@ -510,6 +538,40 @@ const styles = StyleSheet.create({
     marginTop: spacing.sm,
     fontSize: typography.fontSizes.xs,
     color: colors.text.disabled,
+    fontStyle: "italic",
+  },
+
+  // AI 컨텍스트 입력
+  aiSection: {
+    marginBottom: spacing.md,
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.lg,
+    padding: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  aiLabelRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginBottom: spacing.xs,
+  },
+  aiLabel: {
+    fontSize: typography.fontSizes.sm,
+    fontWeight: typography.fontWeights.semibold,
+    color: colors.primary,
+  },
+  aiInput: {
+    fontSize: typography.fontSizes.md,
+    color: colors.text.primary,
+    paddingVertical: spacing.xs,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  aiHint: {
+    fontSize: typography.fontSizes.xs,
+    color: colors.primary,
+    marginTop: spacing.xs,
     fontStyle: "italic",
   },
 

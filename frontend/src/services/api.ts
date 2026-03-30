@@ -3,10 +3,14 @@ import { API_BASE_URL, API_ROOT_URL } from "@/constants";
 import type {
   RecommendationRequest,
   RecommendationResponse,
+  AIRecommendationRequest,
   Restaurant,
   HistoryResponse,
   Preference,
   LocationSuggestion,
+  UserRatingCreate,
+  UserRatingRead,
+  RestaurantRatingSummary,
 } from "@/types";
 
 const client = axios.create({
@@ -18,6 +22,8 @@ const client = axios.create({
 export const recommendationsApi = {
   create: (request: RecommendationRequest): Promise<RecommendationResponse> =>
     client.post("/recommendations", request).then((r) => r.data),
+  createAI: (request: AIRecommendationRequest): Promise<RecommendationResponse> =>
+    client.post("/recommendations/ai", request).then((r) => r.data),
 };
 
 export const restaurantsApi = {
@@ -37,6 +43,15 @@ export const preferencesApi = {
     client.post("/preferences", data).then((r) => r.data),
   getBySession: (sessionId: string): Promise<Preference> =>
     client.get(`/preferences/${sessionId}`).then((r) => r.data),
+};
+
+export const ratingsApi = {
+  submit: (data: UserRatingCreate): Promise<UserRatingRead> =>
+    client.post("/ratings", data).then((r) => r.data),
+  getSummary: (restaurantId: number): Promise<RestaurantRatingSummary> =>
+    client.get(`/ratings/summary/${restaurantId}`).then((r) => r.data),
+  getUserRating: (sessionId: string, restaurantId: number): Promise<UserRatingRead | null> =>
+    client.get(`/ratings/user/${sessionId}/${restaurantId}`).then((r) => r.data).catch(() => null),
 };
 
 export const geocodeApi = {

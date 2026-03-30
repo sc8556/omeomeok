@@ -15,8 +15,9 @@ import { useNavigation, useRoute, type RouteProp } from "@react-navigation/nativ
 import type { RootStackParamList, RootStackNavigationProp } from "@/navigation/types";
 import { colors, spacing, typography, borderRadius } from "@/theme";
 import { CATEGORY_META, DEFAULT_CATEGORY_META, FOOD_TYPE_LABELS } from "@/constants";
-import { restaurantsApi } from "@/services/api";
-import type { Restaurant } from "@/types";
+import { restaurantsApi, ratingsApi } from "@/services/api";
+import { useSessionId } from "@/hooks/useSessionId";
+import type { Restaurant, UserRatingRead } from "@/types";
 
 type RouteType = RouteProp<RootStackParamList, "RestaurantDetail">;
 
@@ -24,17 +25,48 @@ export default function RestaurantDetailScreen() {
   const navigation = useNavigation<RootStackNavigationProp>();
   const route = useRoute<RouteType>();
   const { restaurantId } = route.params;
+  const sessionId = useSessionId();
 
   const [restaurant, setRestaurant] = useState<Restaurant | null>(null);
   const [loading, setLoading] = useState(true);
+  const [myRating, setMyRating] = useState<UserRatingRead | null>(null);
+  const [pendingRating, setPendingRating] = useState<number | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    restaurantsApi
-      .getById(restaurantId)
-      .then(setRestaurant)
+    Promise.all([
+      restaurantsApi.getById(restaurantId),
+      ratingsApi.getUserRating(sessionId, restaurantId),
+    ])
+      .then(([r, ur]) => {
+        setRestaurant(r);
+        setMyRating(ur);
+        setPendingRating(ur?.overall ?? null);
+      })
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, [restaurantId]);
+  }, [restaurantId, sessionId]);
+
+  const handleSubmitRating = async () => {
+    if (!pendingRating) return;
+    setSubmitting(true);
+    try {
+      const saved = await ratingsApi.submit({
+        session_id: sessionId,
+        restaurant_id: restaurantId,
+        overall: pendingRating,
+      });
+      setMyRating(saved);
+      // 평점 저장 후 restaurant 새로고침 (집계 반영)
+      const updated = await restaurantsApi.getById(restaurantId);
+      setRestaurant(updated);
+      Alert.alert("저장됨", "평점이 저장되었습니다.");
+    } catch {
+      Alert.alert("오류", "평점 저장에 실패했습니다.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -57,6 +89,7 @@ export default function RestaurantDetailScreen() {
 
   const meta = CATEGORY_META[restaurant.category] ?? DEFAULT_CATEGORY_META;
   const categoryLabel = FOOD_TYPE_LABELS[restaurant.category] ?? restaurant.category;
+  const hasUserRatings = (restaurant.user_rating_count ?? 0) > 0;
 
   const openKakaoPlace = () => {
     if (!restaurant.place_url) return;
@@ -90,7 +123,6 @@ export default function RestaurantDetailScreen() {
           </View>
           <Text style={styles.name}>{restaurant.name}</Text>
 
-          {/* 카테고리 배지 */}
           <View style={styles.badgeRow}>
             <View style={[styles.badge, { backgroundColor: meta.bg }]}>
               <Text style={[styles.badgeText, { color: meta.text }]}>
@@ -101,16 +133,70 @@ export default function RestaurantDetailScreen() {
         </View>
 
         {/* 평점 스탯 */}
-        {restaurant.rating > 0 ? (
-          <View style={styles.statsRow}>
+        <View style={styles.statsRow}>
+          {hasUserRatings ? (
+            <>
+              <Stat
+                icon="heart"
+                iconColor="#EF4444"
+                label={`앱 평점 (${restaurant.user_rating_count}명)`}
+                value={restaurant.user_rating_avg!.toFixed(1)}
+              />
+              {restaurant.rating > 0 && (
+                <>
+                  <View style={styles.statDivider} />
+                  <Stat
+                    icon="star"
+                    iconColor="#F59E0B"
+                    label="카카오 평점"
+                    value={restaurant.rating.toFixed(1)}
+                  />
+                </>
+              )}
+            </>
+          ) : restaurant.rating > 0 ? (
             <Stat
               icon="star"
               iconColor="#F59E0B"
               label="평점"
               value={restaurant.rating.toFixed(1)}
             />
-          </View>
-        ) : null}
+          ) : null}
+          {(restaurant.naver_review_count ?? 0) > 0 && (
+            <>
+              {(hasUserRatings || restaurant.rating > 0) && (
+                <View style={styles.statDivider} />
+              )}
+              <Stat
+                icon="chatbubble-ellipses"
+                iconColor="#03C75A"
+                label="네이버 리뷰"
+                value={`${restaurant.naver_review_count}`}
+              />
+            </>
+          )}
+        </View>
+
+        {/* 내 평점 입력 */}
+        <View style={styles.ratingBox}>
+          <Text style={styles.ratingBoxTitle}>
+            {myRating ? "내 평점" : "이 식당은 어땠나요?"}
+          </Text>
+          <StarPicker value={pendingRating} onChange={setPendingRating} />
+          {pendingRating !== (myRating?.overall ?? null) && (
+            <TouchableOpacity
+              style={[styles.ratingSubmitBtn, submitting && { opacity: 0.6 }]}
+              onPress={handleSubmitRating}
+              disabled={submitting || !pendingRating}
+            >
+              {submitting ? (
+                <ActivityIndicator size="small" color={colors.text.inverse} />
+              ) : (
+                <Text style={styles.ratingSubmitText}>평점 저장</Text>
+              )}
+            </TouchableOpacity>
+          )}
+        </View>
 
         {/* 주소 */}
         {restaurant.address ? (
@@ -122,7 +208,7 @@ export default function RestaurantDetailScreen() {
           </View>
         ) : null}
 
-        {/* 전화번호 — 탭하면 전화 */}
+        {/* 전화번호 */}
         {restaurant.phone ? (
           <TouchableOpacity style={styles.infoRow} onPress={callPhone}>
             <View style={[styles.infoIconBox, { backgroundColor: "#F0FDF4" }]}>
@@ -164,7 +250,31 @@ export default function RestaurantDetailScreen() {
   );
 }
 
-// ─── Sub-components ──────────────────────────────────────────────────────────
+// ─── StarPicker ──────────────────────────────────────────────────────────────
+
+function StarPicker({
+  value,
+  onChange,
+}: {
+  value: number | null;
+  onChange: (v: number) => void;
+}) {
+  return (
+    <View style={styles.starRow}>
+      {[1, 2, 3, 4, 5].map((star) => (
+        <TouchableOpacity key={star} onPress={() => onChange(star)} activeOpacity={0.7}>
+          <Ionicons
+            name={value !== null && star <= value ? "star" : "star-outline"}
+            size={36}
+            color={value !== null && star <= value ? "#F59E0B" : colors.text.disabled}
+          />
+        </TouchableOpacity>
+      ))}
+    </View>
+  );
+}
+
+// ─── Stat ────────────────────────────────────────────────────────────────────
 
 function Stat({
   icon,
@@ -267,9 +377,49 @@ const styles = StyleSheet.create({
     color: colors.text.primary,
   },
   statLabel: {
-    fontSize: typography.fontSizes.sm,
+    fontSize: typography.fontSizes.xs,
     color: colors.text.secondary,
     marginTop: 2,
+    textAlign: "center",
+  },
+
+  // 평점 입력 박스
+  ratingBox: {
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.lg,
+    padding: spacing.md,
+    marginBottom: spacing.md,
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 1,
+  },
+  ratingBoxTitle: {
+    fontSize: typography.fontSizes.md,
+    fontWeight: typography.fontWeights.semibold,
+    color: colors.text.primary,
+    marginBottom: spacing.sm,
+  },
+  starRow: {
+    flexDirection: "row",
+    gap: spacing.sm,
+    marginBottom: spacing.sm,
+  },
+  ratingSubmitBtn: {
+    marginTop: spacing.xs,
+    backgroundColor: colors.primary,
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.xs + 2,
+    borderRadius: borderRadius.full,
+    alignItems: "center",
+    minWidth: 100,
+  },
+  ratingSubmitText: {
+    color: colors.text.inverse,
+    fontSize: typography.fontSizes.sm,
+    fontWeight: typography.fontWeights.semibold,
   },
 
   infoRow: {
@@ -330,18 +480,10 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
     borderRadius: borderRadius.full,
   },
-  actionBtnOutline: {
-    backgroundColor: "transparent",
-    borderWidth: 1.5,
-    borderColor: colors.primary,
-  },
   actionBtnText: {
     color: colors.text.inverse,
     fontSize: typography.fontSizes.md,
     fontWeight: typography.fontWeights.semibold,
-  },
-  actionBtnOutlineText: {
-    color: colors.primary,
   },
 
   kakaoBtn: {

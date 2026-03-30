@@ -14,6 +14,7 @@ class RestaurantBase(BaseModel):
     phone: Optional[str] = None
     image_url: Optional[str] = None
     place_url: Optional[str] = None
+    naver_review_count: int = 0
 
 
 class RestaurantCreate(RestaurantBase):
@@ -24,3 +25,9 @@ class RestaurantRead(RestaurantBase):
     id: int
 
     model_config = {"from_attributes": True}
+
+
+class RestaurantDetailRead(RestaurantRead):
+    """상세 화면용 - 사용자 평점 집계 포함"""
+    user_rating_avg: Optional[float] = None
+    user_rating_count: int = 0
