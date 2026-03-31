@@ -9,6 +9,7 @@ export const MOODS = [
   { id: "cozy", label: "아늑하게", emoji: "🕯️" },
 ];
 
+// DB에 저장되는 내부 카테고리 키 (Kakao 동기화 기준)
 export const FOOD_TYPES = [
   "Korean",
   "Japanese",
@@ -34,6 +35,21 @@ export const FOOD_TYPE_LABELS: Record<string, string> = {
   Thai: "태국",
   Mediterranean: "지중해",
 };
+
+// 사용자에게 보여주는 음식 종류 그룹 (여러 DB 카테고리를 묶음)
+export type FoodGroup = {
+  id: string;
+  label: string;
+  categories: string[]; // DB에 저장된 카테고리 목록
+};
+
+export const FOOD_GROUPS: FoodGroup[] = [
+  { id: "korean",   label: "한식",        categories: ["Korean"] },
+  { id: "japanese", label: "일식",        categories: ["Japanese"] },
+  { id: "chinese",  label: "중식",        categories: ["Chinese"] },
+  { id: "western",  label: "양식",        categories: ["Italian", "French", "Mediterranean", "Mexican", "Indian", "Thai"] },
+  { id: "other",    label: "치킨/패스트푸드", categories: ["American"] },
+];
 
 export const BUDGET_OPTIONS = [
   { label: "1만 5천원 이하", value: 15000 },

@@ -14,7 +14,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import type { RootStackNavigationProp } from "@/navigation/types";
 import { colors, spacing, typography, borderRadius } from "@/theme";
-import { FOOD_TYPES, FOOD_TYPE_LABELS, BUDGET_OPTIONS, DISTANCE_OPTIONS } from "@/constants";
+import { FOOD_GROUPS, BUDGET_OPTIONS, DISTANCE_OPTIONS } from "@/constants";
 import { recommendationsApi, geocodeApi } from "@/services/api";
 import { useSessionId } from "@/hooks/useSessionId";
 import { useLocation, type LocationStatus } from "@/hooks/useLocation";
@@ -26,7 +26,7 @@ export default function HomeScreen() {
   const { location, address, addressLoading, isDefaultLocation, status: locationStatus, requestPermission } = useLocation();
 
   const [selectedBudget, setSelectedBudget] = useState<number | null>(null);
-  const [selectedFoodTypes, setSelectedFoodTypes] = useState<string[]>([]);
+  const [selectedFoodGroups, setSelectedFoodGroups] = useState<string[]>([]);
   const [selectedDistance, setSelectedDistance] = useState<number>(5);
   const [loading, setLoading] = useState(false);
   const [aiContext, setAiContext] = useState("");
@@ -58,11 +58,16 @@ export default function HomeScreen() {
     }, 400);
   }, [searchQuery]);
 
-  const toggleFoodType = (type: string) => {
-    setSelectedFoodTypes((prev) =>
-      prev.includes(type) ? prev.filter((t) => t !== type) : [...prev, type]
+  const toggleFoodGroup = (groupId: string) => {
+    setSelectedFoodGroups((prev) =>
+      prev.includes(groupId) ? prev.filter((g) => g !== groupId) : [...prev, groupId]
     );
   };
+
+  // 선택된 그룹의 모든 DB 카테고리 목록으로 확장
+  const expandedFoodTypes = FOOD_GROUPS
+    .filter((g) => selectedFoodGroups.includes(g.id))
+    .flatMap((g) => g.categories);
 
   const selectSuggestion = (s: LocationSuggestion) => {
     setCustomLocation(s);
@@ -86,7 +91,7 @@ export default function HomeScreen() {
       const commonParams = {
         session_id: sessionId,
         budget: selectedBudget ?? undefined,
-        food_types: selectedFoodTypes,
+        food_types: expandedFoodTypes,
         distance_km: selectedDistance,
         location_lat: activeLocation ? String(activeLocation.latitude) : undefined,
         location_lng: activeLocation ? String(activeLocation.longitude) : undefined,
@@ -213,12 +218,12 @@ export default function HomeScreen() {
 
         <Section title="음식 종류">
           <View style={styles.chipRow}>
-            {FOOD_TYPES.map((f) => (
+            {FOOD_GROUPS.map((g) => (
               <Chip
-                key={f}
-                label={FOOD_TYPE_LABELS[f] ?? f}
-                selected={selectedFoodTypes.includes(f)}
-                onPress={() => toggleFoodType(f)}
+                key={g.id}
+                label={g.label}
+                selected={selectedFoodGroups.includes(g.id)}
+                onPress={() => toggleFoodGroup(g.id)}
               />
             ))}
           </View>

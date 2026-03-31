@@ -52,6 +52,8 @@ export const ratingsApi = {
     client.get(`/ratings/summary/${restaurantId}`).then((r) => r.data),
   getUserRating: (sessionId: string, restaurantId: number): Promise<UserRatingRead | null> =>
     client.get(`/ratings/user/${sessionId}/${restaurantId}`).then((r) => r.data).catch(() => null),
+  deleteRating: (sessionId: string, restaurantId: number): Promise<void> =>
+    client.delete(`/ratings/user/${sessionId}/${restaurantId}`).then(() => undefined),
 };
 
 export const geocodeApi = {

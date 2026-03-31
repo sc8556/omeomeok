@@ -121,15 +121,21 @@ def enrich_ratings(db: Session = Depends(get_db)):
 def enrich_naver_reviews(db: Session = Depends(get_db)):
     """네이버 로컬 API로 리뷰 수를 가져와 naver_review_count가 0인 식당에 채웁니다."""
     from app.models.restaurant import Restaurant as RestaurantModel
-    from app.services.naver_service import fetch_naver_review_count
+    from app.services.naver_service import fetch_naver_info
 
     settings = get_settings()
     if not settings.naver_client_id or not settings.naver_client_secret:
         raise HTTPException(status_code=503, detail="NAVER_CLIENT_ID / NAVER_CLIENT_SECRET가 설정되지 않았습니다.")
 
+    from sqlalchemy import or_
     targets = (
         db.query(RestaurantModel)
-        .filter(RestaurantModel.naver_review_count == 0)
+        .filter(
+            or_(
+                RestaurantModel.naver_review_count == 0,
+                RestaurantModel.naver_place_url.is_(None),
+            )
+        )
         .limit(200)  # 과금 방지: 1회 최대 200개
         .all()
     )
@@ -137,14 +143,17 @@ def enrich_naver_reviews(db: Session = Depends(get_db)):
     counts = {"updated": 0, "skipped": 0, "errors": 0}
     for r in targets:
         try:
-            count = fetch_naver_review_count(
+            count, place_url = fetch_naver_info(
                 r.name,
                 r.address or "",
                 settings.naver_client_id,
                 settings.naver_client_secret,
             )
-            if count is not None:
-                r.naver_review_count = count
+            if count is not None or place_url is not None:
+                if count is not None:
+                    r.naver_review_count = count
+                if place_url and not r.naver_place_url:
+                    r.naver_place_url = place_url
                 counts["updated"] += 1
             else:
                 counts["skipped"] += 1

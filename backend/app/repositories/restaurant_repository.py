@@ -11,6 +11,23 @@ class RestaurantRepository:
     def get_all(self, skip: int = 0, limit: int = 100) -> List[Restaurant]:
         return self.db.query(Restaurant).offset(skip).limit(limit).all()
 
+    def get_within_bounds(
+        self,
+        lat_min: float,
+        lat_max: float,
+        lng_min: float,
+        lng_max: float,
+    ) -> List[Restaurant]:
+        """위경도 bounding box 내 식당만 DB에서 가져옴 (성능 최적화)."""
+        return (
+            self.db.query(Restaurant)
+            .filter(
+                Restaurant.latitude.between(lat_min, lat_max),
+                Restaurant.longitude.between(lng_min, lng_max),
+            )
+            .all()
+        )
+
     def get_by_id(self, restaurant_id: int) -> Optional[Restaurant]:
         return self.db.query(Restaurant).filter(Restaurant.id == restaurant_id).first()
 

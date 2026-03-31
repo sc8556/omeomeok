@@ -15,6 +15,7 @@ class RestaurantBase(BaseModel):
     image_url: Optional[str] = None
     place_url: Optional[str] = None
     naver_review_count: int = 0
+    naver_place_url: Optional[str] = None
 
 
 class RestaurantCreate(RestaurantBase):

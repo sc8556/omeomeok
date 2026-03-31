@@ -34,3 +34,11 @@ def get_restaurant_rating_summary(restaurant_id: int, db: Session = Depends(get_
 def get_user_rating(session_id: str, restaurant_id: int, db: Session = Depends(get_db)):
     """세션의 특정 식당 평점 조회 (없으면 null)"""
     return UserRatingRepository(db).get_user_rating(session_id, restaurant_id)
+
+
+@router.delete("/user/{session_id}/{restaurant_id}", status_code=204)
+def delete_user_rating(session_id: str, restaurant_id: int, db: Session = Depends(get_db)):
+    """내 평점 삭제"""
+    deleted = UserRatingRepository(db).delete(session_id, restaurant_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Rating not found")

@@ -32,6 +32,7 @@ export default function RestaurantDetailScreen() {
   const [myRating, setMyRating] = useState<UserRatingRead | null>(null);
   const [pendingRating, setPendingRating] = useState<number | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     Promise.all([
@@ -57,7 +58,6 @@ export default function RestaurantDetailScreen() {
         overall: pendingRating,
       });
       setMyRating(saved);
-      // 평점 저장 후 restaurant 새로고침 (집계 반영)
       const updated = await restaurantsApi.getById(restaurantId);
       setRestaurant(updated);
       Alert.alert("저장됨", "평점이 저장되었습니다.");
@@ -66,6 +66,30 @@ export default function RestaurantDetailScreen() {
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const handleDeleteRating = () => {
+    Alert.alert("평점 삭제", "내 평점을 삭제하시겠습니까?", [
+      { text: "취소", style: "cancel" },
+      {
+        text: "삭제",
+        style: "destructive",
+        onPress: async () => {
+          setDeleting(true);
+          try {
+            await ratingsApi.deleteRating(sessionId, restaurantId);
+            setMyRating(null);
+            setPendingRating(null);
+            const updated = await restaurantsApi.getById(restaurantId);
+            setRestaurant(updated);
+          } catch {
+            Alert.alert("오류", "평점 삭제에 실패했습니다.");
+          } finally {
+            setDeleting(false);
+          }
+        },
+      },
+    ]);
   };
 
   if (loading) {
@@ -95,6 +119,13 @@ export default function RestaurantDetailScreen() {
     if (!restaurant.place_url) return;
     Linking.openURL(restaurant.place_url).catch(() =>
       Alert.alert("오류", "카카오맵을 열 수 없습니다.")
+    );
+  };
+
+  const openNaverPlace = () => {
+    if (!restaurant.naver_place_url) return;
+    Linking.openURL(restaurant.naver_place_url).catch(() =>
+      Alert.alert("오류", "네이버 지도를 열 수 없습니다.")
     );
   };
 
@@ -179,9 +210,24 @@ export default function RestaurantDetailScreen() {
 
         {/* 내 평점 입력 */}
         <View style={styles.ratingBox}>
-          <Text style={styles.ratingBoxTitle}>
-            {myRating ? "내 평점" : "이 식당은 어땠나요?"}
-          </Text>
+          <View style={styles.ratingBoxHeader}>
+            <Text style={styles.ratingBoxTitle}>
+              {myRating ? "내 평점" : "이 식당은 어땠나요?"}
+            </Text>
+            {myRating && (
+              <TouchableOpacity
+                onPress={handleDeleteRating}
+                disabled={deleting}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                {deleting ? (
+                  <ActivityIndicator size="small" color={colors.text.disabled} />
+                ) : (
+                  <Ionicons name="trash-outline" size={18} color={colors.text.disabled} />
+                )}
+              </TouchableOpacity>
+            )}
+          </View>
           <StarPicker value={pendingRating} onChange={setPendingRating} />
           {pendingRating !== (myRating?.overall ?? null) && (
             <TouchableOpacity
@@ -227,6 +273,31 @@ export default function RestaurantDetailScreen() {
           </View>
         ) : null}
 
+        {/* 메뉴 보기 */}
+        {restaurant.naver_place_url ? (
+          <TouchableOpacity style={styles.menuBtn} onPress={openNaverPlace}>
+            <View style={styles.menuBtnLeft}>
+              <Ionicons name="receipt-outline" size={20} color="#03C75A" />
+              <View>
+                <Text style={[styles.menuBtnTitle, { color: "#03C75A" }]}>메뉴 보기</Text>
+                <Text style={[styles.menuBtnSub, { color: "#059669" }]}>네이버 지도에서 메뉴·가격 확인</Text>
+              </View>
+            </View>
+            <Ionicons name="open-outline" size={16} color="#03C75A" />
+          </TouchableOpacity>
+        ) : restaurant.place_url ? (
+          <TouchableOpacity style={styles.menuBtn} onPress={openKakaoPlace}>
+            <View style={styles.menuBtnLeft}>
+              <Ionicons name="receipt-outline" size={20} color="#3A1D96" />
+              <View>
+                <Text style={styles.menuBtnTitle}>메뉴 보기</Text>
+                <Text style={styles.menuBtnSub}>카카오맵에서 메뉴·가격 확인</Text>
+              </View>
+            </View>
+            <Ionicons name="open-outline" size={16} color="#3A1D96" />
+          </TouchableOpacity>
+        ) : null}
+
         {/* 액션 버튼 */}
         {restaurant.phone ? (
           <View style={styles.actionRow}>
@@ -235,14 +306,6 @@ export default function RestaurantDetailScreen() {
               <Text style={styles.actionBtnText}>전화 걸기</Text>
             </TouchableOpacity>
           </View>
-        ) : null}
-
-        {restaurant.place_url ? (
-          <TouchableOpacity style={styles.kakaoBtn} onPress={openKakaoPlace}>
-            <Ionicons name="restaurant-outline" size={18} color="#3A1D96" />
-            <Text style={styles.kakaoBtnText}>카카오맵에서 메뉴 보기</Text>
-            <Ionicons name="open-outline" size={14} color="#3A1D96" />
-          </TouchableOpacity>
         ) : null}
 
       </ScrollView>
@@ -396,11 +459,17 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 1,
   },
+  ratingBoxHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    width: "100%",
+    marginBottom: spacing.sm,
+  },
   ratingBoxTitle: {
     fontSize: typography.fontSizes.md,
     fontWeight: typography.fontWeights.semibold,
     color: colors.text.primary,
-    marginBottom: spacing.sm,
   },
   starRow: {
     flexDirection: "row",
@@ -486,20 +555,29 @@ const styles = StyleSheet.create({
     fontWeight: typography.fontWeights.semibold,
   },
 
-  kakaoBtn: {
+  menuBtn: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    gap: spacing.xs,
-    marginTop: spacing.sm,
-    paddingVertical: spacing.md,
-    borderRadius: borderRadius.full,
+    justifyContent: "space-between",
     backgroundColor: "#EDE9FE",
+    borderRadius: borderRadius.lg,
+    padding: spacing.md,
+    marginBottom: spacing.sm,
   },
-  kakaoBtnText: {
+  menuBtnLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+  },
+  menuBtnTitle: {
     fontSize: typography.fontSizes.md,
     fontWeight: typography.fontWeights.semibold,
     color: "#3A1D96",
+  },
+  menuBtnSub: {
+    fontSize: typography.fontSizes.xs,
+    color: "#6D28D9",
+    marginTop: 2,
   },
 
   errorText: {

@@ -5,6 +5,8 @@ Claude API를 이용한 컨텍스트 기반 맛집 추천 서비스.
 근처 식당 목록과 함께 Claude에게 전달하고 추천 결과를 받습니다.
 """
 import json
+import math
+import re
 from typing import List, Optional, Tuple
 import anthropic
 from sqlalchemy.orm import Session
@@ -41,7 +43,17 @@ class AIRecommendationService:
         base_service = RecommendationService(self.db)
         user_lat, user_lng = base_service._parse_coords(request.location_lat, request.location_lng)
 
-        all_restaurants = self.restaurant_repo.get_all(limit=2000)
+        if user_lat is not None and user_lng is not None:
+            lat_delta = request.distance_km / 111.0
+            lng_delta = request.distance_km / (111.0 * max(math.cos(math.radians(user_lat)), 0.01))
+            all_restaurants = self.restaurant_repo.get_within_bounds(
+                lat_min=user_lat - lat_delta,
+                lat_max=user_lat + lat_delta,
+                lng_min=user_lng - lng_delta,
+                lng_max=user_lng + lng_delta,
+            )
+        else:
+            all_restaurants = self.restaurant_repo.get_all(limit=2000)
         candidates = base_service._filter_by_distance(
             all_restaurants, user_lat, user_lng, request.distance_km
         )
@@ -157,4 +169,6 @@ class AIRecommendationService:
         )
 
         raw = message.content[0].text.strip()
+        # Claude가 마크다운 코드블록으로 감싸는 경우 제거
+        raw = re.sub(r"```(?:json)?\s*", "", raw).strip()
         return json.loads(raw)

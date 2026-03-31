@@ -12,6 +12,7 @@ export interface Restaurant {
   image_url?: string;
   place_url?: string;
   naver_review_count: number;
+  naver_place_url?: string;
   // 상세 화면용 (GET /restaurants/:id 에서만 제공)
   user_rating_avg?: number;
   user_rating_count?: number;

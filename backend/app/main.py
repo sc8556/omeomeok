@@ -31,6 +31,9 @@ with engine.connect() as _conn:
         for stmt in [
             "ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS place_url VARCHAR(500)",
             "ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS naver_review_count INTEGER DEFAULT 0",
+            "ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS naver_place_url VARCHAR(500)",
+            "CREATE INDEX IF NOT EXISTS idx_restaurants_lat ON restaurants (latitude)",
+            "CREATE INDEX IF NOT EXISTS idx_restaurants_lng ON restaurants (longitude)",
         ]:
             _conn.execute(text(stmt))
             _conn.commit()

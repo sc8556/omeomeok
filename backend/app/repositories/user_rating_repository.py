@@ -71,6 +71,21 @@ class UserRatingRepository:
             .first()
         )
 
+    def delete(self, session_id: str, restaurant_id: int) -> bool:
+        existing = (
+            self.db.query(UserRating)
+            .filter(
+                UserRating.session_id == session_id,
+                UserRating.restaurant_id == restaurant_id,
+            )
+            .first()
+        )
+        if not existing:
+            return False
+        self.db.delete(existing)
+        self.db.commit()
+        return True
+
     def get_avg_ratings_bulk(self, restaurant_ids: List[int]) -> Dict[int, Tuple[float, int]]:
         """restaurant_id → (avg_overall, count) 딕셔너리 반환"""
         if not restaurant_ids:

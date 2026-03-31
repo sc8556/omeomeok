@@ -1,3 +1,4 @@
+import math
 from typing import Dict, List, Optional, Tuple
 from sqlalchemy.orm import Session
 from app.models.recommendation import Recommendation
@@ -18,18 +19,29 @@ class RecommendationService:
         self.user_rating_repo = UserRatingRepository(db)
 
     def generate(self, request: RecommendationRequest) -> List[Recommendation]:
-        restaurants = self.restaurant_repo.get_all(limit=2000)
-
         user_lat, user_lng = self._parse_coords(request.location_lat, request.location_lng)
 
-        # Step 1: filter by distance (only when user coordinates are available)
+        # Step 1: bounding box pre-filter at DB level (성능 최적화)
+        if user_lat is not None and user_lng is not None:
+            lat_delta = request.distance_km / 111.0
+            lng_delta = request.distance_km / (111.0 * max(math.cos(math.radians(user_lat)), 0.01))
+            restaurants = self.restaurant_repo.get_within_bounds(
+                lat_min=user_lat - lat_delta,
+                lat_max=user_lat + lat_delta,
+                lng_min=user_lng - lng_delta,
+                lng_max=user_lng + lng_delta,
+            )
+        else:
+            restaurants = self.restaurant_repo.get_all(limit=2000)
+
+        # Step 2: haversine 정밀 필터 (bounding box 통과한 후보만)
         candidates = self._filter_by_distance(restaurants, user_lat, user_lng, request.distance_km)
 
-        # Step 2: bulk fetch user ratings for candidates
+        # Step 3: bulk fetch user ratings for candidates
         candidate_ids = [r.id for r in candidates]
         user_ratings = self.user_rating_repo.get_avg_ratings_bulk(candidate_ids)
 
-        # Step 3: score remaining candidates
+        # Step 4: score remaining candidates
         scored = self._score_restaurants(candidates, request, user_lat, user_lng, user_ratings)
         top = sorted(scored, key=lambda x: x[1], reverse=True)[:30]
 
@@ -118,14 +130,38 @@ class RecommendationService:
             if request.food_types and r.category in request.food_types:
                 score += 30
 
-            # Budget fit
+            # Budget fit (price_range: 1=저렴, 2=보통, 3=고급)
             if request.budget:
-                if request.budget <= 15000 and r.price_range == 1:
-                    score += 15
-                elif request.budget < 40000 and r.price_range <= 2:
-                    score += 15
-                elif r.price_range <= 3:
-                    score += 15
+                if request.budget <= 15000:
+                    # 저예산: 저렴한 곳만 적합
+                    if r.price_range == 1:
+                        score += 15
+                    elif r.price_range == 2:
+                        score -= 5
+                    else:
+                        score -= 15
+                elif request.budget <= 30000:
+                    # 중저예산: 저렴~보통
+                    if r.price_range <= 2:
+                        score += 15
+                    else:
+                        score -= 10
+                elif request.budget <= 60000:
+                    # 중예산: 보통~고급 모두 가능, 보통이 최적
+                    if r.price_range == 2:
+                        score += 15
+                    elif r.price_range == 3:
+                        score += 10
+                    else:
+                        score += 5
+                else:
+                    # 고예산: 고급 선호
+                    if r.price_range == 3:
+                        score += 15
+                    elif r.price_range == 2:
+                        score += 10
+                    else:
+                        score += 3
 
             # Mood fit: bonus for match, penalty for mismatch
             if mood_profile:
